@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>InstaGrid AI Studio - 完全自動パイプライン＆DB内蔵版</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- JSZip for batch download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'M PLUS Rounded 1c', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: { 500: '#f97316' },
+                        surface: { 800: '#1e2029', 900: '#13141a', 950: '#0b0c10' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #0b0c10; color: #f3f4f6; -webkit-font-smoothing: antialiased; }
+        
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+        .glow-effect { animation: pulseGlow 4s infinite ease-in-out; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #13141a; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        .custom-scroll { scrollbar-width: thin; scrollbar-color: #374151 #13141a; }
+
+        .reveal-section {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal-section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white pb-12">
+
+    <!-- Header -->
+    <header class="border-b border-gray-800/80 bg-surface-900/90 sticky top-0 z-40 backdrop-blur-md px-4 py-3 shadow-lg">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <button id="btnToggleSidebar" class="w-10 h-10 rounded-xl bg-surface-800 hover:bg-gray-700 text-gray-300 transition flex items-center justify-center lg:hidden">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white font-bold shrink-0">
+                    <i class="fa-solid fa-book-open"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm sm:text-base leading-tight text-white flex items-center gap-2">
+                        InstaGrid AI Studio
+                        <span class="hidden sm:inline text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">All-in-One</span>
+                    </h1>
+                    <p class="text-[11px] text-gray-400 flex items-center gap-1">
+                        <span id="headerProjectName" class="text-indigo-400 font-medium truncate max-w-[150px] sm:max-w-xs">新規プロジェクト</span>
+                    </p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-1 sm:gap-2">
+                <button id="btnDownloadHtml" class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-2 rounded-xl border border-indigo-700/60 bg-indigo-600/20 hover:bg-indigo-600 hover:text-white text-indigo-300 transition flex items-center gap-1.5 shadow-sm" title="アプリ本体を保存">
+                    <i class="fa-solid fa-file-code"></i> <span class="hidden sm:inline">HTML保存</span>
+                </button>
+                <button id="btnDataSyncModal" class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-2 rounded-xl border border-gray-700 bg-surface-800 hover:bg-gray-700 text-gray-300 transition flex items-center gap-1.5" title="データ引継(JSON)">
+                    <i class="fa-solid fa-arrows-rotate text-emerald-400"></i> <span class="hidden sm:inline">データ管理</span>
+                </button>
+                <button id="btnSettingsModal" class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-2 rounded-xl border border-gray-700 bg-surface-800 hover:bg-gray-700 text-gray-300 transition flex items-center gap-1.5" title="プロンプト・指示設定">
+                    <i class="fa-solid fa-sliders text-pink-400"></i> <span class="hidden sm:inline">設定</span>
+                </button>
+                <div class="w-px h-6 bg-gray-700 mx-0.5 sm:mx-1"></div>
+                <button id="apiKeyModalBtn" class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-2 rounded-xl border border-gray-700 bg-surface-800 text-gray-300 hover:text-white transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-key text-amber-400"></i> <span id="apiKeyBadge" class="hidden sm:inline">API設定</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 max-w-7xl w-full mx-auto flex">
+        
+        <!-- Sidebar (Projects Management) -->
+        <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-30 w-72 bg-surface-900 border-r border-gray-800 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 flex flex-col pt-16 lg:pt-0">
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-surface-950">
+                <h2 class="text-sm font-bold text-gray-300"><i class="fa-solid fa-folder-open text-indigo-400 mr-2"></i>プロジェクト一覧</h2>
+                <button id="btnNewProject" class="text-xs w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600 hover:text-white transition flex items-center justify-center" title="新規作成">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+            </div>
+            <div id="projectList" class="flex-1 overflow-y-auto custom-scroll p-2 space-y-1">
+                <div class="p-4 text-center text-xs text-gray-500 italic">読み込み中...</div>
+            </div>
+        </aside>
+
+        <!-- Overlay for mobile sidebar -->
+        <div id="sidebarOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 hidden lg:hidden"></div>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col gap-8 max-w-full overflow-hidden relative">
+
+            <!-- STEP 1: Input Section -->
+            <section id="inputSection" class="bg-surface-900 border border-gray-800 rounded-2xl p-5 sm:p-7 shadow-xl space-y-6 transition-all duration-500">
+                <div class="flex justify-between items-center cursor-pointer" id="inputSectionHeader">
+                    <h2 class="text-base font-bold text-gray-100 flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold">1</span>
+                        表紙画像と要約の入力
+                    </h2>
+                    <i class="fa-solid fa-chevron-up text-gray-500 transition-transform duration-300" id="inputSectionIcon"></i>
+                </div>
+                
+                <div id="inputSectionContent" class="space-y-6 overflow-hidden transition-all duration-500">
+                    <div class="space-y-1.5 pt-2">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-xs font-bold text-gray-300">
+                                <i class="fa-solid fa-bookmark text-indigo-400 mr-1.5"></i>書籍タイトル（フォルダ名）
+                            </label>
+                            <span id="titleExtractBadge" class="hidden text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full items-center gap-1">
+                                <i class="fa-solid fa-sparkles"></i> AI抽出中...
+                            </span>
+                        </div>
+                        <input type="text" id="projectTitleInput" placeholder="手動入力、または表紙画像アップロード時に自動抽出" class="w-full bg-surface-800 border border-gray-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-xs text-gray-100 outline-none transition font-medium">
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <!-- Cover Image -->
+                        <div class="lg:col-span-4 space-y-2">
+                            <label class="block text-xs font-bold text-gray-300">本の表紙画像</label>
+                            <div id="dropZone" class="relative border-2 border-dashed border-gray-700 hover:border-indigo-500/80 rounded-xl p-4 transition-all cursor-pointer bg-surface-800/40 flex flex-col items-center justify-center h-52">
+                                <input type="file" id="coverInput" accept="image/png, image/jpeg, image/webp" class="hidden">
+                                <div id="uploadPrompt" class="flex flex-col items-center gap-2 pointer-events-none">
+                                    <i class="fa-solid fa-image text-3xl text-gray-500 mb-1"></i>
+                                    <p class="text-xs font-medium text-gray-300 text-center">タップして画像をアップロード</p>
+                                </div>
+                                <div id="previewContainer" class="hidden w-full h-full flex flex-col items-center justify-center relative">
+                                    <img id="coverPreviewImg" src="" alt="Cover" class="max-h-full w-auto object-contain rounded shadow-lg">
+                                    <button id="removeCoverBtn" class="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/80 text-white flex items-center justify-center shadow-md hover:bg-red-500 transition text-xs">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Summary Text -->
+                        <div class="lg:col-span-8 space-y-2 flex flex-col">
+                            <div class="flex items-center justify-between">
+                                <label class="block text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                                    <span>要約テキスト (長文対応・最大10,000字)</span>
+                                    <span id="saveIndicator" class="text-[10px] text-emerald-400 opacity-0 transition-opacity flex items-center gap-1">
+                                        <i class="fa-solid fa-cloud-check"></i> 自動保存済
+                                    </span>
+                                </label>
+                                <button type="button" id="btnInsertSample" class="text-[10px] text-indigo-400 hover:underline bg-indigo-500/10 px-2 py-1 rounded transition">サンプル入力</button>
+                            </div>
+                            <textarea id="summaryInput" rows="7" placeholder="長文の要約を貼り付けてください。AIが自動的に9章に構造化・推敲して分割します。&#10;（例: ▼① 章タイトル... のように区切りが明確だとより確実です）" class="flex-1 w-full bg-surface-800 border border-gray-700 rounded-xl p-3 text-xs font-mono text-gray-300 focus:border-indigo-500 outline-none leading-relaxed resize-y custom-scroll"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Worldview Preset -->
+                    <div class="space-y-2 pt-2 border-t border-gray-800/80">
+                        <label class="block text-xs font-bold text-gray-300 flex items-center justify-between">
+                            <span><i class="fa-solid fa-palette text-amber-400 mr-1.5"></i>立体モックアップの世界観・演出スタイル</span>
+                        </label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" id="stylePresetGrid">
+                            <!-- JS will populate presets from settings -->
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-gray-800 flex justify-end">
+                        <button id="startPipelineBtn" class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/25 transition flex items-center justify-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>完全自動パイプラインを開始</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- STEP 2: Pipeline Progress & Results -->
+            <section id="pipelineSection" class="hidden space-y-8">
+                
+                <!-- Status Bar -->
+                <div class="bg-surface-900 border border-gray-800 rounded-2xl p-5 shadow-xl flex items-center justify-between sticky top-16 z-30 backdrop-blur-md bg-opacity-90">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                            <i id="pipelineSpinner" class="fa-solid fa-spinner fa-spin text-sm"></i>
+                        </div>
+                        <div>
+                            <h3 id="pipelineStatusTitle" class="text-sm font-bold text-white">処理を実行中...</h3>
+                            <p id="pipelineStatusDesc" class="text-[11px] text-gray-400">画像とテキストを解析しています</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] text-gray-500 mb-1">全体進捗</div>
+                        <div class="w-24 sm:w-32 bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                            <div id="mainProgressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Result 1: 立体モックアップ -->
+                <div id="mockupBlock" class="reveal-section hidden bg-surface-900 border border-gray-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-3 mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-200"><i class="fa-solid fa-cube text-emerald-400 mr-2"></i>① 世界観モックアップ (分割前)</h3>
+                            <p class="text-[10px] text-gray-400 mt-1">この画像はそのまま単体でダウンロード可能です（アスペクト比 3:4）。</p>
+                        </div>
+                        <button id="btnDownloadMockup" class="px-3 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-600/30 hover:bg-emerald-600 hover:text-white text-[11px] font-bold transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-download"></i> 単体保存
+                        </button>
+                    </div>
+                    <div class="flex justify-center bg-black/50 rounded-xl p-4 border border-gray-800 relative">
+                        <img id="resultMockupImg" src="" class="max-h-[460px] w-auto object-contain rounded-lg shadow-2xl">
+                    </div>
+                </div>
+
+                <!-- Result 2: インスタ投稿用 9分割 (Grid) -->
+                <div id="gridBlock" class="reveal-section hidden bg-surface-900 border border-gray-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex justify-between items-end border-b border-gray-800 pb-3 mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-200"><i class="fa-brands fa-instagram text-pink-500 mr-2"></i>② インスタ投稿用グリッド（3×3 分割）</h3>
+                            <p class="text-[10px] text-gray-400 mt-1">最新の3:4プロフィール仕様に対応。<strong>第1手（右下）から順に</strong>投稿してください。要約も連動してコピーできます。</p>
+                        </div>
+                    </div>
+                    <div id="postListContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Dynamically injected -->
+                    </div>
+                </div>
+
+                <!-- Result 3: ノート風図解 -->
+                <div id="diagramsBlock" class="reveal-section hidden bg-surface-900 border border-gray-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-800 pb-3 mb-4 gap-3">
+                        <div>
+                            <h3 class="text-sm font-bold text-gray-200"><i class="fa-solid fa-images text-indigo-400 mr-2"></i>③ 大学生手書きノート風図解（全9章分）</h3>
+                            <p class="text-[10px] text-gray-400 mt-1">各章の要約をもとに個別生成された図解（9:16縦長）。カルーセル2枚目以降やストーリーズ用。</p>
+                        </div>
+                        <button id="btnDownloadDiagramsBatch" class="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-[11px] font-bold shadow-lg shadow-indigo-600/20 transition flex items-center justify-center gap-1.5 shrink-0 opacity-50 cursor-not-allowed" disabled>
+                            <i class="fa-solid fa-cloud-arrow-down"></i> <span id="btnBatchLabel">全画像を一括保存</span>
+                        </button>
+                    </div>
+                    <div id="diagramsContainer" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        <!-- Dynamically injected -->
+                    </div>
+                </div>
+
+            </section>
+        </main>
+    </div>
+
+    <!-- Hidden Canvases for Fallback Rendering -->
+    <div class="hidden">
+        <canvas id="feedTileCanvas" width="1080" height="1350"></canvas>
+        <canvas id="fallbackMockupCanvas" width="1080" height="1440"></canvas>
+        <canvas id="fallbackDiagramCanvas" width="1080" height="1920"></canvas>
+    </div>
+
+    <!-- Modal: Data Sync (JSON) -->
+    <div id="dataSyncModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-surface-900 border border-gray-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+            <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-database text-emerald-400"></i> プロジェクトデータの引継ぎ
+                </h3>
+                <button id="closeDataSyncModal" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed">
+                作成した書籍プロジェクトや設定（プロンプト等）をJSONファイルとして書き出してバックアップしたり、アップデート後のアプリに読み込んで引き継ぐことができます。
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="bg-surface-950 border border-gray-800 rounded-xl p-4 flex flex-col justify-between gap-3">
+                    <div>
+                        <div class="text-xs font-bold text-gray-200 flex items-center gap-2 mb-1">
+                            <i class="fa-solid fa-file-export text-emerald-400"></i> バックアップ出力
+                        </div>
+                        <p class="text-[10px] text-gray-400">全データと設定をJSONで保存します。</p>
+                    </div>
+                    <button id="btnExportJsonModal" class="w-full py-2.5 rounded-lg bg-surface-800 hover:bg-gray-700 border border-gray-700 text-gray-200 text-xs font-bold transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-download"></i> JSONを出力
+                    </button>
+                </div>
+                <div class="bg-surface-950 border border-gray-800 rounded-xl p-4 flex flex-col justify-between gap-3">
+                    <div>
+                        <div class="text-xs font-bold text-gray-200 flex items-center gap-2 mb-1">
+                            <i class="fa-solid fa-file-import text-indigo-400"></i> データ読込
+                        </div>
+                        <p class="text-[10px] text-gray-400">以前書き出したJSONを選択して復元します。</p>
+                    </div>
+                    <input type="file" id="jsonFileInput" accept=".json,application/json" class="hidden">
+                    <button id="btnTriggerJsonImport" class="w-full py-2.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/50 text-indigo-300 hover:text-white text-xs font-bold transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-upload"></i> JSONを選択
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Settings (Prompts & Instructions) -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-surface-900 border border-gray-700 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div class="flex items-center justify-between border-b border-gray-800 p-5 shrink-0">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-pink-400"></i> 指示・プロンプト設定
+                </h3>
+                <button id="closeSettingsModal" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 overflow-y-auto custom-scroll flex-1 space-y-6">
+                <p class="text-[11px] text-gray-300 leading-relaxed bg-surface-950 border border-gray-800 p-3 rounded-lg">
+                    ここで設定したプロンプトや追加指示はローカルに保存され、アプデ時のJSONエクスポートにも含まれます。
+                    <span class="text-pink-400 block mt-1">※ {{変数名}} の部分はプログラム実行時に自動置換されます。変更しないでください。</span>
+                </p>
+
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-indigo-400">要約構造化用システムプロンプト (Gemini)</label>
+                    <textarea id="settingStructPrompt" rows="3" class="w-full bg-surface-800 border border-gray-700 rounded-xl p-3 text-[11px] text-gray-300 focus:border-indigo-500 outline-none"></textarea>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-emerald-400">タイトル抽出用プロンプト</label>
+                    <textarea id="settingTitlePrompt" rows="2" class="w-full bg-surface-800 border border-gray-700 rounded-xl p-3 text-[11px] text-gray-300 focus:border-emerald-500 outline-none"></textarea>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-pink-400">図解生成用ベースプロンプト (ノート風)</label>
+                    <textarea id="settingDiagramPrompt" rows="10" class="w-full bg-surface-800 border border-gray-700 rounded-xl p-3 text-[11px] font-mono leading-relaxed text-gray-300 focus:border-pink-500 outline-none custom-scroll"></textarea>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 p-4 flex justify-between shrink-0 bg-surface-950">
+                <button id="btnResetSettings" class="text-xs text-gray-500 hover:text-red-400 transition">デフォルトに戻す</button>
+                <button id="btnSaveSettings" class="text-xs px-5 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold transition shadow-lg shadow-pink-600/30">設定を保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: API Key -->
+    <div id="apiKeyModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-surface-900 border border-gray-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-bold text-white"><i class="fa-solid fa-key text-amber-400 mr-2"></i> Gemini API設定</h3>
+                <button id="closeApiKeyModal" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-[11px] text-gray-300 leading-relaxed mb-4">
+                Gemini APIキーを設定すると、AIによる高精度なテキスト構造化、タイトル抽出、および超美麗な立体モックアップ・図解生成が有効になります。<br>
+                <span class="text-gray-500 mt-1 block">※未設定の場合は内蔵の代替エンジン（Canvas）で画像を生成します。</span>
+            </p>
+            <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full text-xs bg-surface-800 border border-gray-700 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-gray-200 outline-none mb-4 font-mono">
+            <div class="flex justify-end"><button id="saveApiKeyBtn" class="text-xs px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold transition">保存</button></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-surface-800 text-white border border-gray-700 px-5 py-3 rounded-2xl text-xs shadow-2xl z-50 transition-all duration-300 transform opacity-0 pointer-events-none translate-y-4 flex items-center gap-2 whitespace-nowrap">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-green-400 text-base"></i>
+        <span id="toastText">メッセージ</span>
+    </div>
+
+    <script>
+        /* =========================================================
+           Default Settings & Presets
+        ========================================================= */
+        const DEFAULT_SETTINGS = {
+            structPrompt: "あなたは優秀な編集者・教育コンサルタントです。提供された長文の要約テキストを読み込み、論理的で分かりやすい全9章（①〜⑨）に推敲・構造化してください。誤字脱字を完全に修正し、各章が独立して図解に適した内容になるように整理してください。",
+            titlePrompt: "この本の表紙画像から、メインタイトルを正確に読み取り、タイトル名のみを返してください。サブタイトルや著者名、余計な説明文は含めず、本の名前だけを出力してください。",
+            diagramPrompt: `大学生が手書きノートにまとめたような、非常に分かりやすく丁寧で美しいノート風の図解イラストを作成してください。
+iPhoneの縦長画面にぴったりな「縦長比率（9:16）」の画像にしてください。
+
+【ノートの右上の指定】
+- ノートの右上のスペースに、アップロードされた本の表紙イラスト（または参考画像のような本の表紙のミニチュア・イラスト）が配置されていること。
+
+【テーマ・内容（第{{chapter_index}}章）】
+書籍タイトル: 「{{book_title}}」
+章見出し: {{chapter_title}}
+重要解説・本文:
+{{chapter_body}}
+
+【デザインの指定】
+- 本物のキャンパスノートや方眼ノートをベースにした背景（罫線や薄いグリッド）。
+- マーカー（黄色やピンク）、色ペン（赤や青）で綺麗に色分けされた見出しや枠線。
+- 内容をわかりやすく整理した手書き風の図解、フローチャート、箇条書き、可愛いイラストアイコンや模式図を含む。
+- 誤字脱字のない、綺麗で自然な日本語の文字や見出しがレイアウトされていること。
+- 全体として非常におしゃれでクオリティが高く、大学生がまとめたような親しみやすく知的なノートデザイン。`
+        };
+
+        const PRESETS = {
+            fire: { name: "🔥 熱血・火の粉", prompt: "Create a photorealistic, dramatic 3D commercial book mockup featuring the exact uploaded book cover. The book must be realistically standing upright in the center on a dark, rough textured obsidian or slate floor. Cinematic background filled with glowing embers, fiery sparks floating through the dark air, subtle smoke, and an intense warm spotlight highlighting the book. The book should show realistic thickness, crisp spine, realistic paper page edges on the side, and a slight natural perspective with deep, dramatic cast shadow on the ground. The typography and artwork of the cover must be faithfully retained as an authentic printed physical book." },
+            desk: { name: "☕ カフェデスク", prompt: "Create a photorealistic, elegant 3D book mockup placing the uploaded book cover on a high-end natural oak wooden desk. The book should be resting or standing naturally with realistic thickness and binding. Background features soft morning natural window light, slight aesthetic bokeh of a modern cafe interior, a clean ceramic coffee cup, and subtle green plant leaf in the corner. Warm, inviting, cozy yet intellectual atmosphere." },
+            library: { name: "🏛️ 重厚書斎", prompt: "Create a photorealistic, intellectual 3D book mockup featuring the uploaded book cover standing proudly on a polished dark mahogany table. In the background, out-of-focus classical dark academia library shelves with vintage books and a subtle warm incandescent reading lamp casting elegant light on the book. Majestic, timeless, and authoritative feel." },
+            studio: { name: "✨ スタジオ", prompt: "Create a clean, ultra-modern 3D product shot mockup of the uploaded book. The book stands upright on a smooth minimalist architectural pedestal (podium). Clean neutral gray/off-white background with soft diffuse directional studio softbox lighting, crisp geometric shadows, and pristine high-end aesthetic publication showcase." },
+            cyber: { name: "🌌 サイバー", prompt: "Create a sleek, futuristic 3D book mockup featuring the uploaded book standing on a reflective dark glass surface. Ambient cyberpunk lighting with subtle neon cyan and violet backlighting, microscopic holographic particles floating softly, and modern high-tech visual effects highlighting innovation." },
+            auto: { name: "🪄 AI自動", prompt: "Analyze the uploaded book cover's aesthetic, color scheme, mood, and genre. Render the book as a photorealistic, premium 3D physical book mockup standing on a fitting surface, surrounded by an environment and background elements that perfectly harmonize with and amplify the book's specific subject matter, tone, and theme. Ensure sharp realism, accurate lighting, realistic paper edges and book spine." }
+        };
+
+        let appSettings = { ...DEFAULT_SETTINGS };
+
+        function loadSettings() {
+            const saved = localStorage.getItem('instagrid_settings');
+            if (saved) {
+                try {
+                    appSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+                } catch(e) {}
+            }
+        }
+        function saveSettings() {
+            localStorage.setItem('instagrid_settings', JSON.stringify(appSettings));
+        }
+
+        /* =========================================================
+           IndexedDB Database Wrapper
+        ========================================================= */
+        const DB_NAME = 'InstaGridStudioDB_v2';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'projects';
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function saveProjectToDB(project) {
+            try {
+                const db = await openDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    const store = tx.objectStore(STORE_NAME);
+                    project.updatedAt = Date.now();
+                    store.put(project);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch (err) { console.warn('DB save warning:', err); }
+        }
+
+        async function getProjectFromDB(id) {
+            try {
+                const db = await openDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readonly');
+                    const request = tx.objectStore(STORE_NAME).get(id);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            } catch (err) { return null; }
+        }
+
+        async function getAllProjectsFromDB() {
+            try {
+                const db = await openDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readonly');
+                    const request = tx.objectStore(STORE_NAME).getAll();
+                    request.onsuccess = () => {
+                        const sorted = (request.result || []).sort((a, b) => b.updatedAt - a.updatedAt);
+                        resolve(sorted);
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            } catch (err) { return []; }
+        }
+
+        async function deleteProjectFromDB(id) {
+            try {
+                const db = await openDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    tx.objectStore(STORE_NAME).delete(id);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch (err) { console.warn('DB delete warning:', err); }
+        }
+
+        /* =========================================================
+           Application State & Utils
+        ========================================================= */
+        function getEmptyProject() {
+            return {
+                id: crypto.randomUUID(),
+                title: '新規プロジェクト',
+                preset: 'fire',
+                coverBase64: null,
+                coverMimeType: 'image/jpeg',
+                summaryRaw: '',
+                chapters: [], // {title, body}
+                mockupUrl: null,
+                gridTiles: [], // 9 items
+                diagramUrls: new Array(9).fill(null),
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+        }
+
+        let currentProject = getEmptyProject();
+        let isProcessing = false;
+
+        function getApiKey() { return localStorage.getItem('gemini_custom_api_key') || ''; }
+        
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastText').textContent = msg;
+            document.getElementById('toastIcon').className = isError ? "fa-solid fa-circle-exclamation text-red-400 text-base" : "fa-solid fa-circle-check text-green-400 text-base";
+            toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+            setTimeout(() => toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none'), 3500);
+        }
+
+        async function fetchWithRetry(url, options, retries = 2, delay = 1500) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    if (response.status === 429 && retries > 0) {
+                        await new Promise(r => setTimeout(r, delay));
+                        return fetchWithRetry(url, options, retries - 1, delay * 2);
+                    }
+                    const errData = await response.json().catch(()=>({}));
+                    throw new Error(errData.error?.message || `API Error: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                if (retries > 0) {
+                    await new Promise(r => setTimeout(r, delay));
+                    return fetchWithRetry(url, options, retries - 1, delay * 2);
+                }
+                throw error;
+            }
+        }
+
+        /* =========================================================
+           UI Event Listeners & Binding
+        ========================================================= */
+        
+        // Sidebar Toggle
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        function toggleSidebar() {
+            sidebar.classList.toggle('-translate-x-full');
+            sidebarOverlay.classList.toggle('hidden');
+        }
+        document.getElementById('btnToggleSidebar').addEventListener('click', toggleSidebar);
+        sidebarOverlay.addEventListener('click', toggleSidebar);
+
+        // Render Presets
+        const presetGrid = document.getElementById('stylePresetGrid');
+        Object.entries(PRESETS).forEach(([key, p]) => {
+            const btn = document.createElement('button');
+            btn.type = "button";
+            btn.className = "style-preset-btn text-left p-2.5 rounded-xl border border-gray-700/80 bg-surface-800 hover:border-gray-600 transition relative flex flex-col gap-1";
+            btn.setAttribute('data-preset', key);
+            btn.innerHTML = `
+                <div class="flex items-center justify-between text-[11px] sm:text-xs font-bold text-gray-200">
+                    <span class="truncate">${p.name}</span>
+                    <i class="fa-regular fa-circle text-gray-500 text-[10px] check-icon shrink-0 ml-1"></i>
+                </div>
+            `;
+            presetGrid.appendChild(btn);
+        });
+
+        presetGrid.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.style-preset-btn');
+            if (!btn) return;
+            currentProject.preset = btn.getAttribute('data-preset');
+            updatePresetUI();
+            await saveProjectToDB(currentProject);
+        });
+
+        function updatePresetUI() {
+            document.querySelectorAll('.style-preset-btn').forEach(b => {
+                const match = b.getAttribute('data-preset') === (currentProject.preset || 'fire');
+                b.classList.toggle('border-orange-500', match);
+                b.classList.toggle('bg-orange-500/10', match);
+                b.classList.toggle('border-gray-700/80', !match);
+                b.classList.toggle('bg-surface-800', !match);
+                const icon = b.querySelector('.check-icon');
+                if (icon) icon.className = match ? "fa-solid fa-circle-check text-orange-400 text-[10px] check-icon" : "fa-regular fa-circle text-gray-500 text-[10px] check-icon";
+            });
+        }
+
+        // Projects List
+        async function loadProjectList() {
+            const listEl = document.getElementById('projectList');
+            const projects = await getAllProjectsFromDB();
+            listEl.innerHTML = '';
+            if (projects.length === 0) {
+                listEl.innerHTML = '<div class="p-4 text-center text-xs text-gray-500 italic">プロジェクトはありません</div>';
+                return;
+            }
+            projects.forEach(p => {
+                const active = p.id === currentProject.id;
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${active ? 'bg-indigo-600/10 border-indigo-500/50' : 'bg-surface-800 border-gray-700 hover:border-gray-500'}`;
+                
+                let coverHtml = p.coverBase64 ? `<img src="data:${p.coverMimeType};base64,${p.coverBase64}" class="w-8 h-10 object-cover rounded shadow">` : `<div class="w-8 h-10 bg-gray-800 rounded flex items-center justify-center text-gray-600 text-[10px]"><i class="fa-solid fa-image"></i></div>`;
+                
+                div.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden flex-1 project-selector">
+                        ${coverHtml}
+                        <div class="flex-1 overflow-hidden">
+                            <div class="text-[11px] font-bold text-gray-200 truncate ${active ? 'text-indigo-400' : ''}">${p.title}</div>
+                            <div class="text-[9px] text-gray-500">${new Date(p.updatedAt).toLocaleDateString()}</div>
+                        </div>
+                    </div>
+                    <button class="btnDeleteProject text-gray-500 hover:text-red-400 p-1.5 shrink-0" title="削除"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                `;
+                
+                div.querySelector('.project-selector').addEventListener('click', async () => {
+                    currentProject = p;
+                    refreshUIFromState();
+                    if(window.innerWidth < 1024) toggleSidebar();
+                });
+                
+                div.querySelector('.btnDeleteProject').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if(confirm(`「${p.title}」を削除しますか？`)) {
+                        await deleteProjectFromDB(p.id);
+                        if(currentProject.id === p.id) await createNewProject();
+                        else loadProjectList();
+                    }
+                });
+                listEl.appendChild(div);
+            });
+        }
+
+        async function createNewProject() {
+            currentProject = getEmptyProject();
+            await saveProjectToDB(currentProject);
+            refreshUIFromState();
+        }
+        document.getElementById('btnNewProject').addEventListener('click', createNewProject);
+
+        // Inputs
+        const inputSectionHeader = document.getElementById('inputSectionHeader');
+        const inputSectionContent = document.getElementById('inputSectionContent');
+        const inputSectionIcon = document.getElementById('inputSectionIcon');
+        let isInputOpen = true;
+        
+        inputSectionHeader.addEventListener('click', () => {
+            isInputOpen = !isInputOpen;
+            if(isInputOpen) {
+                inputSectionContent.style.maxHeight = inputSectionContent.scrollHeight + "px";
+                inputSectionContent.style.opacity = "1";
+                inputSectionIcon.style.transform = "rotate(0deg)";
+                setTimeout(() => inputSectionContent.style.maxHeight = 'none', 500);
+            } else {
+                inputSectionContent.style.maxHeight = inputSectionContent.scrollHeight + "px";
+                void inputSectionContent.offsetWidth;
+                inputSectionContent.style.maxHeight = "0";
+                inputSectionContent.style.opacity = "0";
+                inputSectionIcon.style.transform = "rotate(180deg)";
+            }
+        });
+
+        document.getElementById('dropZone').addEventListener('click', e => { if(!e.target.closest('#removeCoverBtn')) document.getElementById('coverInput').click(); });
+        document.getElementById('coverInput').addEventListener('change', e => { if (e.target.files.length) handleCoverUpload(e.target.files[0]); });
+
+        function handleCoverUpload(file) {
+            if (!file.type.startsWith('image/')) return showToast('画像を選択してください', true);
+            currentProject.coverMimeType = file.type;
+            const reader = new FileReader();
+            reader.onload = async e => {
+                currentProject.coverBase64 = e.target.result.split(',')[1];
+                
+                const cleanName = file.name.replace(/\.[^/.]+$/, "");
+                if ((!currentProject.title || currentProject.title === '新規プロジェクト') && cleanName) {
+                    currentProject.title = cleanName;
+                }
+                await saveProjectToDB(currentProject);
+                refreshUIFromState();
+                await autoDetectTitleFromCover();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function autoDetectTitleFromCover() {
+            if (!currentProject.coverBase64) return;
+            const apiKey = getApiKey();
+            if (!apiKey) return;
+
+            const badge = document.getElementById('titleExtractBadge');
+            badge.classList.remove('hidden');
+            badge.classList.add('flex');
+
+            try {
+                // gemini-1.5-flash is stable and widely available for this
+                const titlePayload = {
+                    contents: [{
+                        role: "user",
+                        parts: [
+                            { text: appSettings.titlePrompt },
+                            { inlineData: { mimeType: currentProject.coverMimeType, data: currentProject.coverBase64 } }
+                        ]
+                    }]
+                };
+
+                const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(titlePayload)
+                }, 1, 1000);
+
+                const detectedTitle = res.candidates?.[0]?.content?.parts?.[0]?.text?.trim().replace(/[\r\n"']/g, '');
+                if (detectedTitle) {
+                    currentProject.title = detectedTitle;
+                    await saveProjectToDB(currentProject);
+                    refreshUIFromState();
+                    showToast(`タイトル「${detectedTitle}」を抽出しました`);
+                }
+            } catch (err) {
+                console.warn('Title detect error:', err);
+            } finally {
+                badge.classList.add('hidden');
+                badge.classList.remove('flex');
+            }
+        }
+
+        document.getElementById('projectTitleInput').addEventListener('input', async (e) => {
+            currentProject.title = e.target.value.trim() || '新規プロジェクト';
+            document.getElementById('headerProjectName').textContent = currentProject.title;
+            await saveProjectToDB(currentProject);
+            loadProjectList();
+        });
+
+        // Summary Auto-save
+        let summarySaveTimeout = null;
+        const summaryInputEl = document.getElementById('summaryInput');
+        summaryInputEl.addEventListener('input', (e) => {
+            currentProject.summaryRaw = e.target.value;
+            localStorage.setItem('instagrid_draft_' + currentProject.id, currentProject.summaryRaw);
+            clearTimeout(summarySaveTimeout);
+            summarySaveTimeout = setTimeout(async () => {
+                await saveProjectToDB(currentProject);
+                const ind = document.getElementById('saveIndicator');
+                ind.classList.remove('opacity-0');
+                setTimeout(() => ind.classList.add('opacity-0'), 1500);
+            }, 500);
+        });
+
+        document.getElementById('removeCoverBtn').addEventListener('click', async e => {
+            e.stopPropagation(); 
+            currentProject.coverBase64 = null;
+            await saveProjectToDB(currentProject);
+            refreshUIFromState();
+        });
+
+        document.getElementById('btnInsertSample').addEventListener('click', async () => {
+            const sample = `━━━━━━━━━━━━━━━\n▼① 凡事を非凡に徹する「唯一無二」の絶対哲学\n━━━━━━━━━━━━━━━\n凡庸な人間と一流を分かつ境界線は、決して天賦の才能や魔法のような裏技の有無にあるのではない。その核心は、誰もが「当たり前」と見過ごすような些細な行動を、他者が決して真似できないほどの高次元で、狂気的に徹底できるかどうかに集約される。\n\n━━━━━━━━━━━━━━━\n▼② 直感を過信しない「脳の錯覚」\n━━━━━━━━━━━━━━━\n人間が「自分の直感で決めた」と誇覚するとき、すでに脳の無意識領域は0.5秒前に結論を出している。\n\n━━━━━━━━━━━━━━━\n▼③ 意志を放棄する「自動システム」\n━━━━━━━━━━━━━━━\nモチベーションに頼る人間は例外なく挫折する。やるべき行動が目の前に置かれ、サボるための摩擦が極限まで高められた環境さえ作れば、脳は勝手に行動を選択する。\n\n━━━━━━━━━━━━━━━\n▼④ 集中力の爆発点「ドーパミン」\n━━━━━━━━━━━━━━━\nやる気は待っていても訪れない。脳は実際に手足を動かし、行動を開始して初めて刺激される。\n\n━━━━━━━━━━━━━━━\n▼⑤ 身体反応から感情を支配する\n━━━━━━━━━━━━━━━\n心が折れるから身体が縮こまるのではない。身体が猫背になるから脳が不安を検知する。\n\n━━━━━━━━━━━━━━━\n▼⑥ 記憶と知性の「能動的想起」\n━━━━━━━━━━━━━━━\n本を何度も読み返すのは欺瞞である。頭の中から必死に思い出すときの負荷によってのみ強固に結合する。\n\n━━━━━━━━━━━━━━━\n▼⑦ 天才へと変貌する「ミラーニューロン」\n━━━━━━━━━━━━━━━\n人間の脳は徹底した社会適応マシーンであり、周囲の人間の基準を鏡のように同期してしまう。\n\n━━━━━━━━━━━━━━━\n▼⑧ 潜在意識の整理「空白時間」\n━━━━━━━━━━━━━━━\n画期的なアイデアは、脳が意識的作業を止めた瞬間に降臨する。\n\n━━━━━━━━━━━━━━━\n▼⑨ 死ぬまで進化する「神経可塑性」\n━━━━━━━━━━━━━━━\n歳をとると脳細胞が死滅するという説は迷信である。脳は何歳からでも新しいシナプスを増殖させる。`;
+            summaryInputEl.value = sample;
+            currentProject.summaryRaw = sample;
+            await saveProjectToDB(currentProject);
+            showToast('サンプル要約を入力しました');
+        });
+
+        document.getElementById('btnDownloadHtml').addEventListener('click', () => {
+            const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'InstaGrid_AI_Studio.html';
+            a.click();
+            URL.revokeObjectURL(a.href);
+            showToast('アプリ本体をダウンロードしました');
+        });
+
+        /* =========================================================
+           Modals (Settings, JSON Sync, API Key)
+        ========================================================= */
+        const settingsModal = document.getElementById('settingsModal');
+        document.getElementById('btnSettingsModal').addEventListener('click', () => {
+            document.getElementById('settingStructPrompt').value = appSettings.structPrompt;
+            document.getElementById('settingTitlePrompt').value = appSettings.titlePrompt;
+            document.getElementById('settingDiagramPrompt').value = appSettings.diagramPrompt;
+            settingsModal.classList.replace('hidden', 'flex');
+        });
+        document.getElementById('closeSettingsModal').addEventListener('click', () => settingsModal.classList.replace('flex', 'hidden'));
+        document.getElementById('btnResetSettings').addEventListener('click', () => {
+            if(!confirm('プロンプトを初期状態に戻しますか？')) return;
+            appSettings = { ...DEFAULT_SETTINGS };
+            saveSettings();
+            settingsModal.classList.replace('flex', 'hidden');
+            showToast('設定をリセットしました');
+        });
+        document.getElementById('btnSaveSettings').addEventListener('click', () => {
+            appSettings.structPrompt = document.getElementById('settingStructPrompt').value;
+            appSettings.titlePrompt = document.getElementById('settingTitlePrompt').value;
+            appSettings.diagramPrompt = document.getElementById('settingDiagramPrompt').value;
+            saveSettings();
+            settingsModal.classList.replace('flex', 'hidden');
+            showToast('設定を保存しました');
+        });
+
+        const dataSyncModal = document.getElementById('dataSyncModal');
+        document.getElementById('btnDataSyncModal').addEventListener('click', () => dataSyncModal.classList.replace('hidden', 'flex'));
+        document.getElementById('closeDataSyncModal').addEventListener('click', () => dataSyncModal.classList.replace('flex', 'hidden'));
+
+        document.getElementById('btnExportJsonModal').addEventListener('click', async () => {
+            const projects = await getAllProjectsFromDB();
+            if (projects.length === 0) return showToast('保存するプロジェクトがありません', true);
+            const exportData = {
+                version: "1.0",
+                settings: appSettings,
+                projects: projects
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+            const a = document.createElement('a');
+            a.href = dataStr;
+            a.download = `InstaGrid_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            showToast(`設定と ${projects.length} 件のプロジェクトをJSON保存しました`);
+        });
+
+        const jsonFileInput = document.getElementById('jsonFileInput');
+        document.getElementById('btnTriggerJsonImport').addEventListener('click', () => jsonFileInput.click());
+        jsonFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const imported = JSON.parse(text);
+                
+                let projectsArray = [];
+                if (Array.isArray(imported)) {
+                    projectsArray = imported; // Old format
+                } else if (imported.projects) {
+                    projectsArray = imported.projects;
+                    if (imported.settings) {
+                        appSettings = { ...DEFAULT_SETTINGS, ...imported.settings };
+                        saveSettings();
+                    }
+                }
+
+                if (projectsArray.length === 0) throw new Error('データが見つかりません');
+                for (const proj of projectsArray) await saveProjectToDB(proj);
+                
+                currentProject = projectsArray[0];
+                refreshUIFromState();
+                dataSyncModal.classList.replace('flex', 'hidden');
+                jsonFileInput.value = '';
+                showToast(`${projectsArray.length} 件のプロジェクトを引き継ぎました`);
+            } catch (err) {
+                showToast(`エラー: ${err.message}`, true);
+            }
+        });
+
+        const apiKeyModal = document.getElementById('apiKeyModal');
+        document.getElementById('apiKeyModalBtn').addEventListener('click', () => {
+            document.getElementById('apiKeyInput').value = getApiKey();
+            apiKeyModal.classList.replace('hidden', 'flex');
+        });
+        document.getElementById('closeApiKeyModal').addEventListener('click', () => apiKeyModal.classList.replace('flex', 'hidden'));
+        document.getElementById('saveApiKeyBtn').addEventListener('click', () => {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            if(key) localStorage.setItem('gemini_custom_api_key', key);
+            else localStorage.removeItem('gemini_custom_api_key');
+            apiKeyModal.classList.replace('flex', 'hidden');
+            updateApiKeyBadge();
+            showToast('APIキーを保存しました');
+        });
+
+        function updateApiKeyBadge() {
+            const badge = document.getElementById('apiKeyBadge');
+            if (getApiKey()) {
+                badge.textContent = "AI連携中";
+                badge.classList.add('text-emerald-400');
+            } else {
+                badge.textContent = "API設定";
+                badge.classList.remove('text-emerald-400');
+            }
+        }
+
+        /* =========================================================
+           Pipeline Core Logic
+        ========================================================= */
+        function updateStatus(title, desc, percent, isError = false) {
+            document.getElementById('pipelineStatusTitle').textContent = title;
+            document.getElementById('pipelineStatusDesc').textContent = desc;
+            document.getElementById('mainProgressBar').style.width = `${percent}%`;
+            
+            const spinner = document.getElementById('pipelineSpinner');
+            if (isError) {
+                spinner.className = "fa-solid fa-triangle-exclamation text-red-500 text-sm";
+                document.getElementById('pipelineStatusTitle').classList.add('text-red-400');
+            } else if (percent >= 100) {
+                spinner.className = "fa-solid fa-check text-emerald-400 text-sm";
+            } else {
+                spinner.className = "fa-solid fa-spinner fa-spin text-sm text-indigo-400";
+                document.getElementById('pipelineStatusTitle').classList.remove('text-red-400');
+            }
+        }
+
+        function revealBlock(id) {
+            const block = document.getElementById(id);
+            if (!block) return;
+            block.classList.remove('hidden');
+            void block.offsetWidth;
+            block.classList.add('visible');
+        }
+
+        const startPipelineBtn = document.getElementById('startPipelineBtn');
+        startPipelineBtn.addEventListener('click', async () => {
+            if (isProcessing) return;
+            
+            const summaryText = summaryInputEl.value.trim();
+            if (!currentProject.coverBase64) return showToast('表紙画像をアップロードしてください', true);
+            if (!summaryText) return showToast('要約テキストを入力してください', true);
+
+            currentProject.summaryRaw = summaryText;
+            await saveProjectToDB(currentProject);
+            
+            isProcessing = true;
+            startPipelineBtn.disabled = true;
+            startPipelineBtn.classList.add('opacity-70', 'cursor-wait');
+            startPipelineBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>実行中...</span>';
+            
+            if (isInputOpen) inputSectionHeader.click();
+            document.getElementById('pipelineSection').classList.remove('hidden');
+            ['mockupBlock', 'gridBlock', 'diagramsBlock'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.classList.remove('visible'); el.classList.add('hidden'); }
+            });
+            
+            try {
+                // Step 1
+                updateStatus('Step 1/4: テキスト解析中', '要約の構造化を行っています...', 10);
+                await step1_ParseText(summaryText);
+                await saveProjectToDB(currentProject);
+
+                // Step 2
+                updateStatus('Step 2/4: 世界観構築中', '3Dモックアップ画像をレンダリングしています...', 30);
+                await step2_GenerateMockup();
+                await saveProjectToDB(currentProject);
+                document.getElementById('resultMockupImg').src = currentProject.mockupUrl;
+                revealBlock('mockupBlock');
+
+                // Step 3
+                updateStatus('Step 3/4: グリッド分割中', 'Instagram 3:4仕様に合わせて分割しています...', 50);
+                await step3_SliceGrid();
+                await saveProjectToDB(currentProject);
+                renderGridUI();
+                revealBlock('gridBlock');
+
+                // Step 4
+                revealBlock('diagramsBlock');
+                renderDiagramsUIPlaceholder();
+                for (let i = 0; i < 9; i++) {
+                    updateStatus('Step 4/4: 図解生成中', `第 ${i+1} / 9 章の図解を生成しています...`, 50 + Math.round(((i+1)/9)*50));
+                    try {
+                        const url = await generateSingleDiagram(i);
+                        currentProject.diagramUrls[i] = url;
+                        await saveProjectToDB(currentProject);
+                        updateDiagramCard(i, url, false);
+                    } catch(e) {
+                        const fallbackUrl = await generateCanvasDiagramFallback(i);
+                        currentProject.diagramUrls[i] = fallbackUrl;
+                        await saveProjectToDB(currentProject);
+                        updateDiagramCard(i, fallbackUrl, false);
+                    }
+                }
+
+                updateStatus('すべての処理が完了しました', '各セクションから保存やシェアが可能です。', 100);
+                const batchBtn = document.getElementById('btnDownloadDiagramsBatch');
+                batchBtn.disabled = false;
+                batchBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            } catch (error) {
+                console.error(error);
+                updateStatus('完了（一部代替処理）', '画像の生成が終了しました。', 100);
+            } finally {
+                isProcessing = false;
+                startPipelineBtn.disabled = false;
+                startPipelineBtn.classList.remove('opacity-70', 'cursor-wait');
+                startPipelineBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i><span>パイプラインを再実行</span>';
+            }
+        });
+
+        // Step 1: Parse Text
+        async function step1_ParseText(text) {
+            const apiKey = getApiKey();
+            if (apiKey) {
+                try {
+                    const payload = {
+                        contents: [{ parts: [{ text: `以下の要約テキストを綺麗に推敲・整理し、全9章に分けてJSONフォーマットの文字列配列で返してください。\n\n【要約テキスト】\n${text}` }] }],
+                        systemInstruction: { parts: [{ text: appSettings.structPrompt }] },
+                        generationConfig: { responseMimeType: "application/json" }
+                    };
+                    const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    });
+                    const parsed = JSON.parse(res.candidates[0].content.parts[0].text);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        currentProject.chapters = parsed.slice(0,9).map((body, i) => ({
+                            title: `第${i+1}章`, body: body
+                        }));
+                        while(currentProject.chapters.length < 9) {
+                            currentProject.chapters.push({title:`第${currentProject.chapters.length+1}章`, body:'まとめと補足'});
+                        }
+                        return;
+                    }
+                } catch(e) { console.warn("AI Structuring failed, using regex fallback"); }
+            }
+
+            // Regex fallback
+            const regex = /━━━━━━━━━━━━━━━[\s\S]*?([▼■【]?[①-⑨0-9].*?)━━━━━━━━━━━━━━━([\s\S]*?)(?=(━━━━━━━━━━━━━━━|$))/g;
+            const chapters = [];
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                chapters.push({ title: match[1].trim(), body: match[2].trim() });
+            }
+            if (chapters.length === 0) {
+                const parts = text.split(/(?=[①②③④⑤⑥⑦⑧⑨⑩])/g).filter(p=>p.trim());
+                parts.forEach((p,i) => chapters.push({title: `第${i+1}章`, body: p.trim()}));
+            }
+            while (chapters.length < 9) chapters.push({ title: `第${chapters.length+1}章`, body: "本章のポイント" });
+            currentProject.chapters = chapters.slice(0, 9);
+        }
+
+        // Step 2: Generate Mockup
+        async function step2_GenerateMockup() {
+            const apiKey = getApiKey();
+            if (apiKey) {
+                try {
+                    const presetObj = PRESETS[currentProject.preset] || PRESETS.fire;
+                    const payload = {
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: `${presetObj.prompt} The book must be rendered in standard 3:4 aspect ratio with authentic realistic book thickness, spine, paper edges, rich lighting, and dramatic contact shadows.` },
+                                { inlineData: { mimeType: currentProject.coverMimeType, data: currentProject.coverBase64 } }
+                            ]
+                        }],
+                        generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: "3:4" } }
+                    };
+                    const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                    }, 1);
+                    const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+                    if (part) {
+                        currentProject.mockupUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                        return;
+                    }
+                } catch(e) {}
+            }
+            currentProject.mockupUrl = await generateCanvasMockupFallback();
+        }
+
+        // Canvas Mockup Generator (High Quality)
+        function generateCanvasMockupFallback() {
+            return new Promise((resolve) => {
+                const canvas = document.getElementById('fallbackMockupCanvas');
+                const ctx = canvas.getContext('2d');
+                const preset = currentProject.preset || 'fire';
+
+                if (preset === 'fire') {
+                    const bgGrad = ctx.createRadialGradient(540, 600, 100, 540, 720, 950);
+                    bgGrad.addColorStop(0, '#2c1209'); bgGrad.addColorStop(1, '#070403');
+                    ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, 1080, 1440);
+                    const floorGrad = ctx.createLinearGradient(0, 950, 0, 1440);
+                    floorGrad.addColorStop(0, '#1a0d08'); floorGrad.addColorStop(1, '#050302');
+                    ctx.fillStyle = floorGrad; ctx.fillRect(0, 950, 1080, 490);
+                } else if (preset === 'desk') {
+                    const bgGrad = ctx.createRadialGradient(540, 500, 120, 540, 720, 900);
+                    bgGrad.addColorStop(0, '#2b231d'); bgGrad.addColorStop(1, '#0a0807');
+                    ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, 1080, 1440);
+                    const tableGrad = ctx.createLinearGradient(0, 950, 0, 1440);
+                    tableGrad.addColorStop(0, '#362316'); tableGrad.addColorStop(1, '#110a06');
+                    ctx.fillStyle = tableGrad; ctx.fillRect(0, 950, 1080, 490);
+                } else {
+                    const bgGrad = ctx.createRadialGradient(540, 520, 120, 540, 720, 920);
+                    bgGrad.addColorStop(0, '#1e2433'); bgGrad.addColorStop(1, '#080a0e');
+                    ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, 1080, 1440);
+                    ctx.fillStyle = '#090b0e'; ctx.fillRect(0, 950, 1080, 490);
+                }
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 950); ctx.lineTo(1080, 950); ctx.stroke();
+
+                const coverImg = new Image();
+                coverImg.onload = () => {
+                    const bookW = 460, bookH = 650, bookX = 330, bookY = 360, spineW = 55;
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.ellipse(bookX + bookW/2, bookY + bookH + 20, bookW/1.4, 50, 0, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'; ctx.filter = 'blur(28px)'; ctx.fill();
+                    ctx.restore();
+
+                    // Spine
+                    const spineGrad = ctx.createLinearGradient(bookX - spineW, bookY, bookX, bookY);
+                    spineGrad.addColorStop(0, '#101217'); spineGrad.addColorStop(0.5, '#353a47'); spineGrad.addColorStop(1, '#1b1e27');
+                    ctx.fillStyle = spineGrad;
+                    ctx.beginPath();
+                    ctx.moveTo(bookX, bookY); ctx.lineTo(bookX - spineW, bookY + 28);
+                    ctx.lineTo(bookX - spineW, bookY + bookH + 28); ctx.lineTo(bookX, bookY + bookH);
+                    ctx.closePath(); ctx.fill();
+
+                    // Pages
+                    const pagesGrad = ctx.createLinearGradient(bookX, bookY + bookH, bookX + bookW, bookY + bookH + 20);
+                    pagesGrad.addColorStop(0, '#e5e7eb'); pagesGrad.addColorStop(1, '#4b5563');
+                    ctx.fillStyle = pagesGrad;
+                    ctx.beginPath();
+                    ctx.moveTo(bookX, bookY + bookH); ctx.lineTo(bookX - spineW, bookY + bookH + 28);
+                    ctx.lineTo(bookX + bookW - spineW, bookY + bookH + 28); ctx.lineTo(bookX + bookW, bookY + bookH);
+                    ctx.closePath(); ctx.fill();
+
+                    // Cover
+                    ctx.save();
+                    ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 30; ctx.shadowOffsetX = 12; ctx.shadowOffsetY = 18;
+                    ctx.drawImage(coverImg, bookX, bookY, bookW, bookH);
+                    ctx.restore();
+
+                    // Gloss
+                    const sheen = ctx.createLinearGradient(bookX, bookY, bookX + bookW, bookY + bookH);
+                    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.15)'); sheen.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+                    ctx.fillStyle = sheen; ctx.fillRect(bookX, bookY, bookW, bookH);
+
+                    resolve(canvas.toDataURL('image/jpeg', 0.95));
+                };
+                coverImg.src = `data:${currentProject.coverMimeType};base64,${currentProject.coverBase64}`;
+            });
+        }
+
+        document.getElementById('btnDownloadMockup').addEventListener('click', () => {
+            if(!currentProject.mockupUrl) return;
+            const a = document.createElement('a'); a.href = currentProject.mockupUrl; a.download = `${currentProject.title}_Mockup.jpg`; a.click();
+        });
+
+        // Step 3: Grid Slicing
+        async function step3_SliceGrid() {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const feedCanvas = document.getElementById('feedTileCanvas');
+                    const feedCtx = feedCanvas.getContext('2d');
+                    
+                    const W = img.width, H = img.height;
+                    const H_src_tile = H / 3, W_src_tile = W / 3;
+                    const scale = 1350 / H_src_tile; 
+                    const targetW_in_src = 1080 / scale;
+                    
+                    currentProject.gridTiles = new Array(9);
+                    
+                    for (let r = 0; r < 3; r++) {
+                        for (let c = 0; c < 3; c++) {
+                            const naturalIdx = r * 3 + c;
+                            const postOrder = 9 - naturalIdx; // Bottom-right is 1st post
+                            
+                            const centerX = (c + 0.5) * W_src_tile;
+                            const sx = centerX - (targetW_in_src / 2);
+                            const sy = r * H_src_tile;
+                            
+                            feedCtx.clearRect(0,0,1080,1350);
+                            feedCtx.drawImage(img, sx, sy, targetW_in_src, H_src_tile, 0, 0, 1080, 1350);
+                            currentProject.gridTiles[postOrder - 1] = feedCanvas.toDataURL('image/jpeg', 0.95);
+                        }
+                    }
+                    resolve();
+                };
+                img.onerror = reject;
+                img.src = currentProject.mockupUrl;
+            });
+        }
+
+        function renderGridUI() {
+            const container = document.getElementById('postListContainer');
+            container.innerHTML = '';
+            for(let i=1; i<=9; i++) {
+                const idx = i - 1;
+                const feedUrl = currentProject.gridTiles[idx];
+                const chapter = currentProject.chapters[idx] || {title:'', body:''};
+                const caption = `【第${i}手】${chapter.title}\n\n${chapter.body}\n\n#${currentProject.title.replace(/\s/g,'')} #読書記録 #書評 #図解`;
+
+                const card = document.createElement('div');
+                card.className = "bg-surface-950 border border-gray-800 rounded-xl p-4 flex flex-col gap-3";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="px-2 py-1 rounded bg-pink-500/10 text-pink-400 text-[10px] font-bold border border-pink-500/20">第 ${i} 手目 (第${i}章)</span>
+                    </div>
+                    <div class="flex items-center justify-center bg-black rounded-lg overflow-hidden border border-gray-700 h-48">
+                        <img src="${feedUrl}" class="h-full w-auto object-contain">
+                    </div>
+                    <div class="flex-1 bg-surface-900 border border-gray-800 p-2 rounded text-[10px] text-gray-400 line-clamp-3 overflow-hidden">
+                        ${chapter.title}<br>${chapter.body}
+                    </div>
+                    <div class="flex gap-2 mt-auto pt-2">
+                        <button class="btnCopy flex-1 text-[11px] bg-surface-800 hover:bg-gray-700 text-white py-2 rounded-lg border border-gray-700 transition flex items-center justify-center gap-1"><i class="fa-solid fa-copy"></i> テキスト</button>
+                        <button class="btnShare flex-1 text-[11px] bg-gradient-to-r from-pink-600 to-orange-500 hover:from-pink-500 hover:to-orange-400 text-white py-2 rounded-lg shadow transition flex items-center justify-center gap-1"><i class="fa-solid fa-share-nodes"></i> シェア</button>
+                    </div>
+                `;
+
+                card.querySelector('.btnCopy').addEventListener('click', () => {
+                    navigator.clipboard.writeText(caption).then(()=>{ showToast(`第${i}手目のキャプションをコピーしました`); });
+                });
+
+                card.querySelector('.btnShare').addEventListener('click', async () => {
+                    try {
+                        const res = await fetch(feedUrl);
+                        const blob = await res.blob();
+                        const file = new File([blob], `grid_${i}.jpg`, {type: 'image/jpeg'});
+                        if(navigator.canShare && navigator.canShare({files: [file]})) {
+                            navigator.clipboard.writeText(caption);
+                            await navigator.share({files: [file], title:`第${i}手`, text:caption});
+                        } else {
+                            const a = document.createElement('a'); a.href = feedUrl; a.download = `grid_${i}.jpg`; a.click();
+                            showToast('端末が直接シェア非対応のため保存しました');
+                        }
+                    } catch(e) {}
+                });
+                container.appendChild(card);
+            }
+        }
+
+        // Step 4: Diagrams
+        async function generateSingleDiagram(idx) {
+            const apiKey = getApiKey();
+            if (apiKey) {
+                const chap = currentProject.chapters[idx];
+                
+                let promptText = appSettings.diagramPrompt
+                    .replace('{{chapter_index}}', idx+1)
+                    .replace('{{book_title}}', currentProject.title)
+                    .replace('{{chapter_title}}', chap.title)
+                    .replace('{{chapter_body}}', chap.body);
+
+                let partsArray = [{ text: promptText }];
+                if (currentProject.coverBase64) {
+                    partsArray.push({ inlineData: { mimeType: currentProject.coverMimeType, data: currentProject.coverBase64 } });
+                    partsArray[0].text += `\n※添付の表紙画像を参考にして、ノート右上にミニチュアイラストを描いてください。`;
+                }
+
+                const payload = {
+                    contents: [{ role: 'user', parts: partsArray }],
+                    generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: "9:16" } }
+                };
+
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                }, 1);
+                const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+                if (part) return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+            }
+            return await generateCanvasDiagramFallback(idx);
+        }
+
+        function generateCanvasDiagramFallback(idx) {
+            return new Promise((resolve) => {
+                const canvas = document.getElementById('fallbackDiagramCanvas');
+                const ctx = canvas.getContext('2d');
+                const chap = currentProject.chapters[idx] || { title: `第${idx+1}章`, body: '' };
+
+                // Paper Background
+                ctx.fillStyle = '#fbfbfa'; ctx.fillRect(0, 0, 1080, 1920);
+                ctx.strokeStyle = '#e6e9f0'; ctx.lineWidth = 1.5;
+                for (let x=60; x<1020; x+=36) { ctx.beginPath(); ctx.moveTo(x,60); ctx.lineTo(x,1860); ctx.stroke(); }
+                for (let y=60; y<1860; y+=36) { ctx.beginPath(); ctx.moveTo(60,y); ctx.lineTo(1020,y); ctx.stroke(); }
+
+                // Red line & Title
+                ctx.strokeStyle = '#f87171'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(110,0); ctx.lineTo(110,1920); ctx.stroke();
+                
+                ctx.fillStyle = '#4f46e5'; ctx.beginPath(); ctx.roundRect(80, 70, 260, 70, 14); ctx.fill();
+                ctx.fillStyle = '#ffffff'; ctx.font = 'bold 30px "M PLUS Rounded 1c", sans-serif'; ctx.fillText(`第 ${idx + 1} 章 ノート`, 110, 116);
+
+                const coverImg = new Image();
+                coverImg.onload = () => {
+                    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.roundRect(790, 50, 210, 290, 8); ctx.fill();
+                    ctx.drawImage(coverImg, 800, 60, 190, 270);
+                    finishDrawing();
+                };
+                coverImg.onerror = finishDrawing;
+                coverImg.src = `data:${currentProject.coverMimeType};base64,${currentProject.coverBase64}`;
+
+                function finishDrawing() {
+                    // Header text
+                    ctx.fillStyle = 'rgba(254, 240, 138, 0.85)'; ctx.beginPath(); ctx.roundRect(140, 220, 620, 100, 16); ctx.fill();
+                    ctx.fillStyle = '#1e1b4b'; ctx.font = '800 34px "M PLUS Rounded 1c", sans-serif'; 
+                    ctx.fillText(chap.title.substring(0, 28), 170, 285);
+
+                    // Body
+                    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.roundRect(130, 380, 820, 1380, 24); ctx.fill(); ctx.stroke();
+                    
+                    ctx.fillStyle = '#6366f1'; ctx.beginPath(); ctx.roundRect(170, 355, 260, 50, 12); ctx.fill();
+                    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 26px "M PLUS Rounded 1c", sans-serif'; ctx.fillText('💡 要約ポイント', 195, 390);
+
+                    ctx.fillStyle = '#334155'; ctx.font = '600 28px "M PLUS Rounded 1c", sans-serif';
+                    let lineY = 480;
+                    
+                    // Simple word wrap
+                    const text = chap.body;
+                    let currentLine = '';
+                    for (let char of text) {
+                        const testLine = currentLine + char;
+                        if (ctx.measureText(testLine).width > 740 && char !== '\n') {
+                            ctx.fillText(currentLine, 175, lineY); lineY += 46; currentLine = char;
+                        } else if (char === '\n') {
+                            ctx.fillText(currentLine, 175, lineY); lineY += 46; currentLine = '';
+                        } else {
+                            currentLine = testLine;
+                        }
+                        if(lineY > 1700) break;
+                    }
+                    if(currentLine && lineY <= 1700) ctx.fillText(currentLine, 175, lineY);
+
+                    resolve(canvas.toDataURL('image/jpeg', 0.95));
+                }
+            });
+        }
+
+        function renderDiagramsUIPlaceholder() {
+            const container = document.getElementById('diagramsContainer');
+            container.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const card = document.createElement('div');
+                card.id = `diagCard-${i}`;
+                card.className = "bg-surface-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2";
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] font-bold text-gray-300">第 ${i + 1} 章</span>
+                    </div>
+                    <div class="aspect-[9/16] bg-surface-900 rounded border border-gray-800 flex flex-col items-center justify-center text-indigo-500 relative">
+                        <i class="fa-solid fa-spinner fa-spin text-xl"></i>
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+        }
+
+        function updateDiagramCard(index, url, isError) {
+            const card = document.getElementById(`diagCard-${index}`);
+            if (!card) return;
+            if (isError) {
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] font-bold text-gray-300">第 ${index + 1} 章</span>
+                    </div>
+                    <div class="aspect-[9/16] bg-surface-900 rounded border border-red-500/30 flex items-center justify-center text-red-400">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <button class="btnRegen mt-1 w-full text-[10px] bg-indigo-600/20 text-indigo-300 py-1.5 rounded"><i class="fa-solid fa-rotate-right"></i> 再生成</button>
+                `;
+            } else if (url) {
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] font-bold text-gray-300">第 ${index + 1} 章</span>
+                        <button class="btnRegen text-[10px] text-indigo-400 hover:text-white"><i class="fa-solid fa-rotate-right"></i></button>
+                    </div>
+                    <div class="aspect-[9/16] bg-black rounded border border-gray-700 overflow-hidden relative">
+                        <img src="${url}" class="w-full h-full object-cover">
+                        <div class="loadingOverlay hidden absolute inset-0 bg-black/80 flex items-center justify-center text-indigo-400"><i class="fa-solid fa-spinner fa-spin"></i></div>
+                    </div>
+                    <button class="btnDownloadSingle mt-1 w-full text-[10px] bg-surface-800 hover:bg-gray-700 text-gray-200 py-1.5 rounded border border-gray-700 transition flex justify-center gap-1"><i class="fa-solid fa-download"></i> 保存</button>
+                `;
+                card.querySelector('.btnDownloadSingle').addEventListener('click', () => {
+                    const a = document.createElement('a'); a.href = currentProject.diagramUrls[index]; a.download = `Chapter_${index+1}.jpg`; a.click();
+                });
+            }
+            const regenBtn = card.querySelector('.btnRegen');
+            if (regenBtn) {
+                regenBtn.addEventListener('click', async (e) => {
+                    if (isProcessing) return showToast('他の処理が実行中です', true);
+                    const overlay = card.querySelector('.loadingOverlay');
+                    if(overlay) overlay.classList.remove('hidden');
+                    try {
+                        const newUrl = await generateSingleDiagram(index);
+                        currentProject.diagramUrls[index] = newUrl;
+                        await saveProjectToDB(currentProject);
+                        updateDiagramCard(index, newUrl, false);
+                    } catch(err) {
+                        updateDiagramCard(index, null, true);
+                    }
+                });
+            }
+        }
+
+        // Batch Download Diagrams
+        document.getElementById('btnDownloadDiagramsBatch').addEventListener('click', async () => {
+            const btn = document.getElementById('btnDownloadDiagramsBatch');
+            if (btn.disabled) return;
+
+            const filePromises = currentProject.diagramUrls.map(async (url, idx) => {
+                if (!url) return null;
+                const res = await fetch(url);
+                const blob = await res.blob();
+                return new File([blob], `Chapter_${idx + 1}.jpg`, { type: 'image/jpeg' });
+            });
+            const files = (await Promise.all(filePromises)).filter(Boolean);
+            if(files.length === 0) return;
+
+            if (navigator.canShare && navigator.canShare({ files: files })) {
+                try {
+                    await navigator.share({ files: files, title: '図解一式' });
+                    return;
+                } catch (e) {}
+            }
+
+            showToast('ZIPファイルを作成中...');
+            try {
+                const zip = new JSZip();
+                const folder = zip.folder(`Diagrams`);
+                currentProject.diagramUrls.forEach((url, idx) => {
+                    if (url) folder.file(`Chapter_${idx+1}.jpg`, url.split(',')[1], { base64: true });
+                });
+                const content = await zip.generateAsync({ type: 'blob' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(content);
+                a.download = `Diagrams.zip`;
+                a.click();
+            } catch(e) { showToast('保存に失敗しました', true); }
+        });
+
+        function refreshUIFromState() {
+            updateApiKeyBadge();
+            document.getElementById('headerProjectName').textContent = currentProject.title;
+            document.getElementById('projectTitleInput').value = currentProject.title;
+            
+            updatePresetUI();
+            
+            if (navigator.canShare) document.getElementById('btnBatchLabel').textContent = 'iPhone写真に一括保存';
+            else document.getElementById('btnBatchLabel').textContent = '図解を一括ZIP保存';
+            
+            if (currentProject.coverBase64) {
+                document.getElementById('coverPreviewImg').src = `data:${currentProject.coverMimeType};base64,${currentProject.coverBase64}`;
+                document.getElementById('uploadPrompt').classList.add('hidden');
+                document.getElementById('previewContainer').classList.remove('hidden');
+            } else {
+                document.getElementById('coverInput').value = '';
+                document.getElementById('uploadPrompt').classList.remove('hidden');
+                document.getElementById('previewContainer').classList.add('hidden');
+            }
+
+            const savedDraft = localStorage.getItem('instagrid_draft_' + currentProject.id);
+            document.getElementById('summaryInput').value = currentProject.summaryRaw || savedDraft || '';
+
+            if (currentProject.mockupUrl || currentProject.gridTiles.length > 0) {
+                document.getElementById('pipelineSection').classList.remove('hidden');
+                
+                if (currentProject.mockupUrl) {
+                    document.getElementById('resultMockupImg').src = currentProject.mockupUrl;
+                    revealBlock('mockupBlock');
+                } else document.getElementById('mockupBlock').classList.add('hidden');
+
+                if (currentProject.gridTiles.length === 9) {
+                    renderGridUI();
+                    revealBlock('gridBlock');
+                } else document.getElementById('gridBlock').classList.add('hidden');
+
+                if (currentProject.diagramUrls.some(u => u !== null)) {
+                    revealBlock('diagramsBlock');
+                    document.getElementById('diagramsContainer').innerHTML = '';
+                    for (let i = 0; i < 9; i++) {
+                        const card = document.createElement('div');
+                        card.id = `diagCard-${i}`;
+                        card.className = "bg-surface-950 border border-gray-800 rounded-xl p-3 flex flex-col gap-2";
+                        document.getElementById('diagramsContainer').appendChild(card);
+                        if (currentProject.diagramUrls[i]) updateDiagramCard(i, currentProject.diagramUrls[i], false);
+                        else updateDiagramCard(i, null, true);
+                    }
+                    document.getElementById('btnDownloadDiagramsBatch').disabled = false;
+                    document.getElementById('btnDownloadDiagramsBatch').classList.remove('opacity-50', 'cursor-not-allowed');
+                } else document.getElementById('diagramsBlock').classList.add('hidden');
+            } else {
+                document.getElementById('pipelineSection').classList.add('hidden');
+            }
+            loadProjectList();
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            loadSettings();
+            await openDB();
+            const projects = await getAllProjectsFromDB();
+            if (projects.length > 0) currentProject = projects[0];
+            else await saveProjectToDB(currentProject);
+            refreshUIFromState();
+        });
+    </script>
+</body>
+</html>
+```eof
+
+### 実装・統合のポイント
+1. **The Single-File Mandate の完全準拠:** HTML, CSS(Tailwind), JS(IndexedDBロジック, APIコール, UI制御), 各種Canvasエンジンをすべてこの1つの `InstaGrid_AI_Studio.html` に統合しました。
+2. **指示・プロンプト設定機能（Settings）の追加:** 
+   * ヘッダー右上に「設定」ボタンを追加。
+   * AIによるタイトル抽出、要約の9章構造化、そして**図解生成（ノート風）の各プロンプト**をUI上で確認・編集できるようにしました。
+   * これらはブラウザ（LocalStorage）に保存され、JSONエクスポート時にはプロジェクトデータと共にバックアップ・引継ぎが行われます。
+3. **要約の9分割とグリッド対応:** 
+   * 「第1手（右下）から順に」というご指定通りに、3x3の分割画像（1〜9）と、9章のテキストが一致するように統合しました。
+   * コピーボタンを押すだけで、「章のタイトル・本文・ハッシュタグ」がセットでクリップボードに入ります。シェアボタンもiOS環境向けに `Web Share API` を用いてインスタ等の他アプリへスムーズに連携します。
+4. **図解の一括保存対応:** 
+   * iOS等の環境に合わせて、一括保存ボタンはネイティブのShare API（写真アプリへの一括保存）を優先し、PC環境など非対応の場合はJSZipを用いたZIP保存へと自動フォールバックします。
+5. **堅牢性の確保 (Canvasフォールバック):** APIキーが無い場合やAIがエラーを返した場合でも、内蔵の2D Canvasエンジンが動き、美しい3Dモックアップやノート風の図解を生成して最後まで完走します。
